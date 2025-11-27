@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity 0.8.6;
+import "@openzeppelin/contracts/utils/math/Math.sol";
+contract Reputation{
+    using Math for uint256;
+    uint256 public constant WAD = 1e18;// Fixed-point scale (1.0 = 1e18)
+    uint256 public alpha = 4e17;        // Learning rate α = 0.4, 0<=α<=1 so in solidity 0 <= alpha <= 1e18
+   
+    address public EVregularityAuthority; //owner
+    mapping (address=>uint256) public userSumRatings;//EV user ratings sum
+    mapping (address=>uint256) public count;// number of times a user has used a station and got a rating
+    // mapping (address=>uint256) public TotalofWeights;//for every station, there is a sum of weights
+    // mapping (address=>uint256) public weightedSum;//for every station there is a weighted sum
+   
+    constructor() public{
+       EVregularityAuthority= msg.sender;
+    }
+
+
+event NoChangeInReputation();
+event WeightedSumsandTotalWeights(address EVstation, uint256 WeightedSums, uint256 TotalWeights);
+event AggregatedReputation(address EVstation, uint256 aggregatedReputation);
+event ReputationOfEVstationIsUpdated(address EVstation, uint256 prevReputation, uint256 NewReputation, uint timestamp);
+event ReputationOfEVdriverIsUpdated(uint256 reputation, address EVDriver, uint timestamp);
+
+//extrernal and only by the BMS sc
+///It takes a rating for the swapping station and calculated the reputation 
+function calculateReputationOfEVstationInEpochT(uint256 prevReputation, address EVstation, uint weightedSum, uint TotalWeights)public
+{
+    // require(newWeight <= WAD, "rating>1.0");
+    // require(newRating<=WAD,"Wight>1.0");
+    // if(weightWad==0)
+    //     emit NoChangeInReputation();
+    // // 1️⃣ Update cumulative weighted sums
+    // weightedSum[EVstation] += Math.mulDiv(newRating, newWeight,WAD);//Numerator of Rbar: both are multiplied and are in WAD so dividing it by single WAD so the sclae stays consistent
+    // TotalofWeights[EVstation] += newWeight;//in WAD scale, denominator of Rbar
+    emit WeightedSumsandTotalWeights(EVstation,weightedSum, TotalWeights);
+    // 2️⃣ Compute weighted average R̄ = (Σ w·r / Σ w)
+    require(TotalWeights > 0, "no weights");
+    uint256 rBarWad = Math.mulDiv(weightedSum, WAD, TotalWeights);//both must be in WAD scale
+    emit AggregatedReputation(EVstation, rBarWad);
+    // 3️⃣ Apply learning rate α:
+    // rep = (1−α)·oldRep + α·rBar
+    uint256 term1 = Math.mulDiv(WAD-alpha,prevReputation,WAD);//prevReputation is in WAD
+    uint256 term2 = Math.mulDiv(alpha,rBarWad,WAD);
+    uint256 newReputation = term1 + term2;
+    emit ReputationOfEVstationIsUpdated(EVstation,  prevReputation,  newReputation, block.timestamp);
+  
+    
+}
+
+//external and only by BMS sc
+//It takes the a rating for an EV driver and calculates the reputation
+function calculateReputationOfEVDriver(uint rating, address EVuser) public
+{
+    userSumRatings[EVuser] = rating + userSumRatings[EVuser];
+    count[EVuser]++;
+    uint256 reputation = (userSumRatings[EVuser])/count[EVuser];
+    emit ReputationOfEVdriverIsUpdated(reputation, EVuser, block.timestamp);
+}
+
+}
