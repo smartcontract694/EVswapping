@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity 0.8.6;
+ import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./Registration.sol";
+import "./EVBatteryManufacturerSC.sol";
+import "./ReputationSC.sol";
+contract EVBSMsc is ReentrancyGuard {
+    mapping  (uint256=>bool) public EVbatteries;// EV batteries bought by the provider
+    mapping (address=>bool) public stationState;//
+    address EVswapServiceProvider;//owner
+    EVBatteryManufacturer  BatteryNFTcontract;
+    Registration  regisSC;
+    Reputation   reputation;
+    event EVBatterySuccessfullyRegisteredwithServiceProvider(uint256 EVBatteryTokenID,address provider);
+    event BatterySwappingRequest(address EVdriver, address EVstation, uint timestamp, uint256 currenTokenID);
+    event EVBatterySwappingServiceStarted(address EVstation, address EVdriver, uint timestamp, uint256 preTokenID, uint256 newTokenID);
+    event BatterySwappingSuccessful(address EVstation, address EVdriver, uint256 newBatteryTokenID);
+    event SwappedBatteriesURIsUpdated(uint256 prevtokenId, string  prevtokenURI,uint256 newtokenId, string  newtokenURI);
+    event NewRatingSubmittedforEVdriver(address EVstation, address EVdriver, uint timestamp,uint rating);
+    event NewRatingSubmittedforEVstation(address EVstation, address EVdriver, uint timestamp,uint rating);
+     
+    constructor(address _batteryNFTContract,
+        address _registration,
+        address _reputation) {
+       EVswapServiceProvider= msg.sender;
+       BatteryNFTcontract = EVBatteryManufacturer(_batteryNFTContract);
+        regisSC = Registration(_registration);
+        reputation = Reputation(_reputation);
+    }
+   
+   function registerEVbattery(uint256 tokenID)public{
+        require(BatteryNFTcontract.ownerOf(tokenID) == EVswapServiceProvider);
+        EVbatteries[tokenID] = true;
+        emit EVBatterySuccessfullyRegisteredwithServiceProvider(tokenID,msg.sender);
+   }
+
+   function requestSwapService(uint256 tokenID, address EVstation) public{
+        regisSC.IsEVdriverRegistered(msg.sender);
+        emit BatterySwappingRequest(msg.sender,  EVstation,  block.timestamp, tokenID);
+   }
+
+    function initiateEVBatterySwapService(address EVdriver, uint256 currentTokenID, uint256 newTokenID)public{
+        regisSC.IsEVswappingStationRegistered(msg.sender);
+        require(stationState[msg.sender]==false);
+        stationState[msg.sender] = true;
+        emit EVBatterySwappingServiceStarted(msg.sender,  EVdriver, block.timestamp,  currentTokenID,  newTokenID);
+    }
+
+    function EVBatterySwapServiceDone(address EVdriver, uint256 currentTokenID, uint256 newTokenID, string memory prevtokenURI, string memory newtokenURI )public{
+        regisSC.IsEVswappingStationRegistered(msg.sender);
+        require(stationState[msg.sender]==true);
+        stationState[msg.sender] = false;//can be used again by other drivers
+        emit BatterySwappingSuccessful(msg.sender,  EVdriver,  newTokenID);
+        UpdateNFTsMetadata(currentTokenID,prevtokenURI,newTokenID,newtokenURI);
+    }
+
+    function UpdateNFTsMetadata(uint256 prevtokenId, string memory prevtokenURI,uint256 newtokenId, string memory newtokenURI )internal{
+        BatteryNFTcontract.updateTokensURI(prevtokenId,prevtokenURI,newtokenId,newtokenURI);
+        emit SwappedBatteriesURIsUpdated(prevtokenId,prevtokenURI,newtokenId,newtokenURI);
+    }
+    function SubmitEVdriverRating(uint256 rating,address driver)public{
+        regisSC.IsEVswappingStationRegistered(msg.sender);
+        emit NewRatingSubmittedforEVdriver( msg.sender,driver, block.timestamp, rating);
+        reputation.calculateReputationOfEVDriver(rating, driver);
+    }
+
+    function SubmitEVStationRating(uint256 rating,address EVstation)public{
+       regisSC.IsEVdriverRegistered(msg.sender);
+        emit NewRatingSubmittedforEVstation(EVstation, msg.sender,block.timestamp,rating);
+    }
+}
+
