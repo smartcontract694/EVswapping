@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity 0.8.6;
+
+
+///////////////////////
+///Registration SC////
+//////////////////////
+
+contract Registration{
+   
+    address public EVregularityAuthority; //owner
+    mapping  (address=>bool) public EVdrivers;//EV drivers
+    mapping  (address=>bool) public EVswappingStations;// EV swapping stations
+    mapping (address=>bool) public Oracles;//Oracles
+    address public manufacturer;//EV battery manufacturer
+   
+    constructor() public{
+       EVregularityAuthority= msg.sender;
+    }
+   
+    modifier onlyEVregularityAuthority{
+      require(msg.sender == EVregularityAuthority);
+      _;
+    }
+   
+    function RegisterEVdriver(address driver) onlyEVregularityAuthority public{
+        EVdrivers[driver] = true;
+    }
+
+    
+    function RegisterEVswappingStation(address station) onlyEVregularityAuthority public{
+        EVswappingStations[station]=true;
+
+    }
+    function RegisterOracle(address oracle) onlyEVregularityAuthority public{
+        Oracles[oracle] = true;
+    }
+    function IsOracleRegistered(address oracle)public{
+         require(Oracles[oracle]);
+    }
+    function IsEVdriverRegistered(address driver) public{
+         require(EVdrivers[driver]);
+        
+    }
+
+    function IsEVswappingStationRegistered(address station) public{
+         require(EVswappingStations[station] );
+    }
+
+
+}
