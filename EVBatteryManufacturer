@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+ import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+ 
+//This contracts mints Dynamic NFTs for each manufactured EV battery
+contract EVBatteryManufacturer is ERC721URIStorage {
+     using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
+    address manufacturer;
+   // address contractAddress;
+    mapping(uint256 => string) private _tokenURIs;
+    event BatteryNFTCreated(uint256 newTokenID, string  URI);
+ //BMSsc: Battery Management SC
+    constructor() ERC721("DynamicNFT", "DNFT") {
+         //require(BMSsc != address(0));
+        //contractAddress = BMSsc;
+        manufacturer = msg.sender;
+    }
+ 
+// modifier onlyEVBSMsc(){
+//     require(msg.sender == contractAddress);
+//     _;
+// }
+
+modifier onlyManufacturer(){
+    require(msg.sender == manufacturer);
+    _;
+}
+
+    function mint(string memory tokenURI) public onlyManufacturer {
+        _tokenIds.increment();
+        uint256 newItemId = _tokenIds.current();
+        _mint(msg.sender, newItemId);
+        _setTokenURI(newItemId, tokenURI);
+         //setApprovalForAll(contractAddress, true);
+         emit BatteryNFTCreated(newItemId,tokenURI);
+    }
+ 
+ //only for the manufacturer
+  function BuyNFT(uint tokenId, address newOwner)  public onlyManufacturer  
+  {
+      transferFrom(manufacturer, newOwner, tokenId);//transferring ownership
+       
+  }
+
+
+ //To update the dynamic NFT
+    function updateTokensURI(uint256 prevtokenId, string memory prevtokenURI,uint256 newtokenId, string memory newtokenURI) external  {
+        _setTokenURI(prevtokenId, prevtokenURI);
+        _setTokenURI(newtokenId, newtokenURI);
+    }
+}
